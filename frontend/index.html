@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>City Service Request Triage</title>
+  <style>
+    /* ── Reset and base ── */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f0f4f8;
+      color: #1a202c;
+      padding: 2rem;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      color: #2b6cb0;
+      margin-bottom: 0.25rem;
+    }
+
+    .subtitle {
+      color: #718096;
+      font-size: 0.95rem;
+      margin-bottom: 2rem;
+    }
+
+    /* ── Form card ── */
+    .card {
+      background: white;
+      border-radius: 10px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      margin-bottom: 2rem;
+      max-width: 640px;
+    }
+
+    .card h2 {
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
+      color: #2d3748;
+    }
+
+    label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #4a5568;
+      margin-bottom: 0.3rem;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      padding: 0.55rem 0.75rem;
+      border: 1px solid #cbd5e0;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      margin-bottom: 1rem;
+      background: #f7fafc;
+      transition: border 0.2s;
+    }
+
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: #4299e1;
+      background: white;
+    }
+
+    textarea { resize: vertical; min-height: 90px; }
+
+    button {
+      background: #2b6cb0;
+      color: white;
+      padding: 0.6rem 1.4rem;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover { background: #2c5282; }
+
+    /* ── Status message ── */
+    #status-msg {
+      margin-top: 0.75rem;
+      font-size: 0.9rem;
+      min-height: 1.2rem;
+    }
+
+    .success { color: #276749; }
+    .error   { color: #c53030; }
+
+    /* ── Dashboard table ── */
+    .dashboard { max-width: 1000px; }
+
+    .dashboard h2 {
+      font-size: 1.1rem;
+      margin-bottom: 1rem;
+      color: #2d3748;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    thead { background: #2b6cb0; color: white; }
+
+    th, td {
+      padding: 0.75rem 1rem;
+      text-align: left;
+      font-size: 0.875rem;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f7fafc; }
+
+    /* ── Priority badge ── */
+    .badge {
+      display: inline-block;
+      padding: 0.2rem 0.55rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .badge-critical { background: #fff5f5; color: #c53030; }
+    .badge-high     { background: #fffaf0; color: #c05621; }
+    .badge-medium   { background: #fffff0; color: #b7791f; }
+    .badge-low      { background: #f0fff4; color: #276749; }
+    .badge-null     { background: #e2e8f0; color: #718096; }
+
+    /* ── Status badge ── */
+    .status-open        { color: #2b6cb0; font-weight: 600; }
+    .status-in_progress { color: #b7791f; font-weight: 600; }
+    .status-resolved    { color: #276749; font-weight: 600; }
+  </style>
+</head>
+
+<body>
+
+  <h1>🏙️ City Service Request Triage</h1>
+  <p class="subtitle">Los Angeles — Department of General Services</p>
+
+  <!-- ── SUBMISSION FORM ── -->
+  <div class="card">
+    <h2>Submit a Service Request</h2>
+
+    <label for="description">Description</label>
+    <textarea
+      id="description"
+      placeholder="Describe the issue in detail (e.g. Broken streetlight near 5th and Main)"
+    ></textarea>
+
+    <label for="location">Location</label>
+    <input
+      type="text"
+      id="location"
+      placeholder="Street address or intersection (e.g. 5th Street and Main St, Los Angeles)"
+    />
+
+    <button onclick="submitRequest()">Submit Request</button>
+    <p id="status-msg"></p>
+  </div>
+
+  <!-- ── DASHBOARD ── -->
+  <div class="dashboard">
+    <h2>📋 Service Request Dashboard</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Description</th>
+          <th>Location</th>
+          <th>Category</th>
+          <th>Priority</th>
+          <th>Status</th>
+          <th>Submitted</th>
+        </tr>
+      </thead>
+      <tbody id="requests-table">
+        <tr><td colspan="7" style="color:#718096">Loading requests...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    const API = "http://127.0.0.1:8000";
+
+    // ── SUBMIT A NEW REQUEST ──────────────────────────────
+    async function submitRequest() {
+      const description = document.getElementById("description").value.trim();
+      const location    = document.getElementById("location").value.trim();
+      const statusMsg   = document.getElementById("status-msg");
+
+      // Basic validation before sending to API
+      if (!description || !location) {
+        statusMsg.textContent = "Please fill in both fields.";
+        statusMsg.className = "error";
+        return;
+      }
+
+      try {
+        // Send POST request to your FastAPI backend
+        const response = await fetch(`${API}/requests`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description, location })
+        });
+
+        if (!response.ok) throw new Error("Submission failed");
+
+        const saved = await response.json();
+
+        // Success — clear form and show confirmation
+        statusMsg.textContent = `✅ Request #${saved.id} submitted successfully.`;
+        statusMsg.className = "success";
+        document.getElementById("description").value = "";
+        document.getElementById("location").value = "";
+
+        // Reload the dashboard to show the new request
+        loadRequests();
+
+      } catch (err) {
+        statusMsg.textContent = "❌ Error submitting request. Is the API running?";
+        statusMsg.className = "error";
+      }
+    }
+
+    // ── LOAD ALL REQUESTS INTO DASHBOARD ─────────────────
+    async function loadRequests() {
+      const tbody = document.getElementById("requests-table");
+
+      try {
+        // Send GET request to your FastAPI backend
+        const response = await fetch(`${API}/requests`);
+        const requests = await response.json();
+
+        if (requests.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="7" style="color:#718096">
+            No requests yet. Submit one above.
+          </td></tr>`;
+          return;
+        }
+
+        // Build table rows from the API response
+        tbody.innerHTML = requests.map(r => `
+          <tr>
+            <td>${r.id}</td>
+            <td>${r.description}</td>
+            <td>${r.location}</td>
+            <td>${r.category ?? "—"}</td>
+            <td>${priorityBadge(r.priority)}</td>
+            <td class="status-${r.status}">${r.status}</td>
+            <td>${formatDate(r.created_at)}</td>
+          </tr>
+        `).join("");
+
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="7" class="error">
+          Cannot connect to API. Make sure uvicorn is running.
+        </td></tr>`;
+      }
+    }
+
+    // ── HELPER: priority color badge ─────────────────────
+    function priorityBadge(priority) {
+      if (!priority) return `<span class="badge badge-null">pending</span>`;
+      return `<span class="badge badge-${priority}">${priority}</span>`;
+    }
+
+    // ── HELPER: format ISO timestamp to readable date ────
+    function formatDate(isoString) {
+      if (!isoString) return "—";
+      const d = new Date(isoString);
+      return d.toLocaleString("en-US", {
+        month: "short", day: "numeric",
+        hour: "2-digit", minute: "2-digit"
+      });
+    }
+
+    // Load requests when the page first opens
+    loadRequests();
+  </script>
+
+</body>
+</html>
