@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
-from typing import List
-from fastapi import FastAPI, Depends, HTTPException
+from typing import List, Optional
+from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session, select
 from database import create_db_and_tables, get_session
@@ -18,7 +18,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# CORS middleware
+# CORS middleware — allows browser requests from frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -28,7 +28,7 @@ app.add_middleware(
 )
 
 
-# ── Health check ───────────────────────────────────────────────────
+# ── Health checks ──────────────────────────────────────────────────
 @app.get("/")
 def read_root():
     return {"message": "City Service Triage API is running"}
@@ -46,15 +46,12 @@ def create_request(
     session: Session = Depends(get_session)
 ):
     """
-    Accepts a new service request.
-    Runs the triage classifier automatically.
+    Accepts a new service request from the frontend form.
+    Automatically runs the triage classifier on the description.
     Stores category, priority, and recommended_action in the DB.
     """
-    # Run triage classifier on the description
     triage_result = classify_request(request_data.description)
 
-    # Build the database object with both citizen input
-    # and classifier output combined
     db_request = ServiceRequest(
         description=request_data.description,
         location=request_data.location,
@@ -69,11 +66,34 @@ def create_request(
     return db_request
 
 
-# ── Get all service requests ───────────────────────────────────────
+# ── Get all service requests with optional filters ─────────────────
 @app.get("/requests", response_model=List[ServiceRequestRead])
-def get_all_requests(session: Session = Depends(get_session)):
-    """Returns all service requests from the database."""
-    requests = session.exec(select(ServiceRequest)).all()
+def get_all_requests(
+    session: Session = Depends(get_session),
+    category: Optional[str] = Query(default=None),
+    priority: Optional[str] = Query(default=None),
+    status: Optional[str] = Query(default=None)
+):
+    """
+    Returns service requests from the database.
+    Supports optional query parameter filters:
+      GET /requests                        → all requests
+      GET /requests?category=maintenance   → filtered by category
+      GET /requests?priority=high          → filtered by priority
+      GET /requests?status=open            → filtered by status
+      GET /requests?category=safety&status=open → combined filters
+    """
+    query = select(ServiceRequest)
+
+    # Apply filters only if the parameter was provided
+    if category:
+        query = query.where(ServiceRequest.category == category)
+    if priority:
+        query = query.where(ServiceRequest.priority == priority)
+    if status:
+        query = query.where(ServiceRequest.status == status)
+
+    requests = session.exec(query).all()
     return requests
 
 
@@ -101,8 +121,10 @@ def update_status(
     session: Session = Depends(get_session)
 ):
     """
-    Updates the status of a request.
+    Updates only the status field of a request.
     Valid values: open, in_progress, resolved
+    Uses PATCH because only one field is being updated.
+    PUT would require sending all fields.
     """
     valid_statuses = ["open", "in_progress", "resolved"]
     if status not in valid_statuses:
