@@ -15,9 +15,10 @@ An AI regenerating this app must produce all of the following:
 - [ ] backend/database.py — engine, session, create_db_and_tables
 - [ ] backend/schemas.py — ServiceRequestCreate, ServiceRequestRead
 - [ ] backend/triage.py — classify_request() with keyword maps
-- [ ] backend/main.py — FastAPI app with 5 endpoints and CORS
+- [ ] backend/main.py — FastAPI app with 6 routes and CORS
 - [ ] frontend/index.html — form, dashboard, filters, JavaScript
 - [ ] mcp/service_request_tools.py — MCP server with 3 tools
+- [ ] mcp/test_mcp.py — smoke test calling all 3 MCP tools against the running backend
 - [ ] backend/tests/__init__.py — empty file, makes tests a package
 - [ ] backend/tests/test_triage.py — 13 classifier unit tests
 - [ ] backend/tests/test_api.py — 18 API integration tests
@@ -291,6 +292,29 @@ Returns: formatted text with all request details.
 
 Implementation: PATCH /requests/{request_id}/status?status={status}
 Returns: confirmation text with updated request details.
+
+---
+
+## mcp/test_mcp.py Specification
+
+Purpose: smoke-test the 3 MCP tools against a running FastAPI backend
+(not a unit test — requires `uvicorn main:app` running on 127.0.0.1:8000).
+
+Must:
+- Check the backend is reachable (GET /health) before running; exit
+  with a clear error if not.
+- Seed one ServiceRequest via POST /requests so the other tools have
+  data to operate on.
+- Call list_requests, get_request, and update_request_status in turn,
+  asserting each returns non-empty TextContent and no unexpected
+  "not found" response.
+- Print a final confirmation line if all three complete without error.
+
+Run with:
+```bash
+cd backend && uvicorn main:app --reload &
+python3 mcp/test_mcp.py
+```
 
 ---
 

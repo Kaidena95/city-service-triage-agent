@@ -551,6 +551,24 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
+### mcp/test_mcp.py
+
+Smoke test (not a pytest unit test) that exercises the 3 MCP tools
+against a live backend. Must:
+
+1. Check GET /health on the running backend before doing anything else;
+   exit with an error message if unreachable.
+2. Seed one request via POST /requests so the other tools have data.
+3. Call list_requests, get_request, and update_request_status in turn.
+4. Assert each call returns non-empty TextContent with no unexpected
+   "not found" response.
+5. Print a final confirmation line if all three succeed.
+
+Run with the backend already running in another terminal:
+```bash
+python3 mcp/test_mcp.py
+```
+
 ---
 
 ## Step 9 — Tests
