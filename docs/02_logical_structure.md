@@ -3,25 +3,28 @@
 
 ---
 
-## System Architecture — Four Layers
+## System Architecture — Three Layers
 
 ```
 FRONTEND LAYER
 frontend/index.html
+
 Technology: HTML + CSS + JavaScript
 Serves: Citizens (form) + Staff (dashboard)
-Communicates: HTTP fetch() calls to Backend API
+Communicates: HTTP fetch() to Backend API
 
         |
-        | HTTP POST /requests
-        | HTTP GET /requests
-        | HTTP PATCH /requests/{id}/status
+        | HTTP (POST /requests)
+        | HTTP (GET /requests)
+        | HTTP (PATCH /requests/{id}/status)
         v
 
 BACKEND LAYER
 backend/main.py + triage.py + schemas.py
+
 Technology: Python + FastAPI + Uvicorn
 Handles: Routing, validation, classification
+Communicates: HTTP responses + SQL queries
 
         |
         | SQL via SQLModel ORM
@@ -29,16 +32,18 @@ Handles: Routing, validation, classification
 
 DATABASE LAYER
 backend/database.db + models.py
+
 Technology: SQLite + SQLModel
-Stores: All service request records permanently
-Accessed by: Backend only, never directly by frontend
+Stores: All service request records
+Accessed by: Backend only
 
         ^
-        | HTTP internal calls via httpx
+        | HTTP (internal calls)
         |
 
 MCP LAYER
 mcp/service_request_tools.py
+
 Technology: Python + MCP SDK
 Exposes: list_requests, get_request, update_request_status
 Used by: AI agents via stdio transport
@@ -49,47 +54,48 @@ Used by: AI agents via stdio transport
 ## Complete Data Flow — Request Submission
 
 ```
-Step 1: Citizen fills form — description + location
-        Clicks Submit Request
+1. Citizen fills form: description + location
+   Clicks "Submit Request"
 
-Step 2: JavaScript fetch() sends
-        POST http://127.0.0.1:8000/requests
-        Body: { "description": "...", "location": "..." }
+2. JavaScript fetch() sends:
+   POST http://127.0.0.1:8000/requests
+   Body: { "description": "...", "location": "..." }
 
-Step 3: FastAPI receives request
-        CORS middleware allows it
-        Routes to create_request()
-        Validates body against ServiceRequestCreate schema
-        If invalid: returns HTTP 422 automatically
+3. FastAPI receives request:
+   - CORS middleware allows it
+   - Routes to create_request()
+   - Validates body against ServiceRequestCreate schema
+   - If invalid: returns HTTP 422 automatically
 
-Step 4: create_request() calls classify_request(description)
-        Normalizes text to lowercase
-        Scores each category by keyword matches
-        Picks highest scoring category
-        Scores each priority level in order
-        Picks first priority with any keyword match
-        Looks up recommended action from ACTION_MAP
-        Returns: { category, priority, recommended_action }
+4. create_request() calls classify_request(description):
+   - Normalizes text to lowercase
+   - Scores each category by keyword matches
+   - Picks highest scoring category
+   - Scores each priority level
+   - Picks highest urgency priority
+   - Looks up recommended action from ACTION_MAP
+   - Returns: { category, priority, recommended_action }
 
-Step 5: ServiceRequest object built
-        description        = citizen input
-        location           = citizen input
-        category           = from classifier
-        priority           = from classifier
-        recommended_action = from classifier
-        status             = "open" (default)
-        created_at         = UTC timestamp (auto)
+5. ServiceRequest object built:
+   description        = citizen input
+   location           = citizen input
+   category           = from classifier
+   priority           = from classifier
+   recommended_action = from classifier
+   status             = "open" (default)
+   created_at         = UTC timestamp (auto)
 
-Step 6: session.add() then session.commit() writes to database.db
-        session.refresh() reloads to get auto-assigned id
+6. session.add() then session.commit() writes to database.db
+   session.refresh() reloads object to get auto-assigned id
 
-Step 7: FastAPI returns HTTP 200 with full record as JSON
+7. FastAPI serializes using ServiceRequestRead schema
+   Returns HTTP 200 with full record as JSON
 
-Step 8: JavaScript shows success message
-        Calls loadRequests() to refresh dashboard
+8. JavaScript shows success message
+   Calls loadRequests() to refresh dashboard
 
-Step 9: GET /requests fetches all rows with active filters
-        Dashboard table re-renders with new request visible
+9. GET /requests fetches all rows (with active filters)
+   Dashboard table re-renders with new request visible
 ```
 
 ---
@@ -101,17 +107,17 @@ Input: description text (string)
 
 Step 1: text = description.lower()
 
-Step 2: For each category in CATEGORY_KEYWORDS
-        score = count of keywords found in text
-        category_scores = { maintenance: 2, safety: 0, ... }
+Step 2: For each category in CATEGORY_KEYWORDS:
+  score = count of keywords found in text
+  category_scores = { maintenance: 2, safety: 0, ... }
 
 Step 3: best_category = category with highest score
-        if all scores = 0 then best_category = "general"
+  if all scores = 0: best_category = "general"
 
-Step 4: For each priority in [critical, high, medium, low]
-        count keywords found in text
-        first priority with count > 0 wins
-        if none found then priority = "low"
+Step 4: For each priority in ["critical","high","medium","low"]:
+  count keywords found in text
+  first priority with count > 0 wins
+  if none found: priority = "low"
 
 Step 5: recommended_action = ACTION_MAP[best_category][best_priority]
 
@@ -170,8 +176,8 @@ Output: { category, priority, recommended_action }
 
 ## File Responsibilities
 
-| File | Layer | Responsibility |
-|------|-------|---------------|
+| File | Layer | Single responsibility |
+|------|-------|-----------------------|
 | frontend/index.html | Frontend | Form UI, dashboard, fetch calls |
 | backend/main.py | Backend | Route definitions, CORS, startup |
 | backend/schemas.py | Backend | Input and output data contracts |
@@ -185,23 +191,23 @@ Output: { category, priority, recommended_action }
 
 ## Why Three Layers Plus MCP?
 
-**Why not let the frontend talk to the database directly?**
+### Why not let the frontend talk to the database directly?
 Security. If the frontend queried the database directly, any user
 could run arbitrary queries and read, modify, or delete all data.
 The backend is a controlled gateway that validates every request
 and enforces business rules.
 
-**Why a separate MCP layer?**
+### Why a separate MCP layer?
 The REST API is designed for human-facing frontends.
 The MCP layer is designed for AI agents. Having both means
-humans use the dashboard while AI agents use structured tools
-— each interface optimized for its audience.
+humans use the dashboard while AI agents use structured tools —
+each interface optimized for its audience.
 
-**Why SQLite and not PostgreSQL?**
-SQLite requires zero configuration and ships with Python —
-perfect for development. The DATABASE_URL in database.py is
-the only line that changes when switching to PostgreSQL in
-production.
+### Why SQLite and not PostgreSQL?
+SQLite requires zero configuration and ships with Python — perfect
+for development. The DATABASE_URL in database.py is the only line
+that changes when switching to PostgreSQL in production. SQLModel
+abstracts the difference.
 
 ---
 
