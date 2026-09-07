@@ -1,0 +1,31 @@
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Database (local data shouldn't go into image)
+backend/database.db
+
+# Git
+.git/
+.gitignore
+
+# Tests (optional — we include tests in image for CI)
+# backend/tests/
+
+# Docs
+docs/
+
+# Environment files (NEVER put secrets in Docker image)
+.env
+*.env
+
+# Mac system files
+.DS_Store
+
+# IDE
+.vscode/
