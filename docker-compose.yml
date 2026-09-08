@@ -1,0 +1,48 @@
+# Docker Compose file version
+# version 3.8 is widely supported and stable
+version: "3.8"
+
+services:
+  # ── The FastAPI Backend ─────────────────────────────────────────
+  api:
+    # Build from our Dockerfile in the current directory
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    # Name the container
+    container_name: triage-api
+
+    # Map port 8000 on your Mac to port 8000 inside the container
+    # Format: "HOST:CONTAINER"
+    ports:
+      - "8000:8000"
+
+    # Environment variables passed into the container at runtime
+    # These override anything set in the Dockerfile
+    # Never put secrets here — use .env file instead
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+      - DATABASE_URL=sqlite:///./database.db
+
+    # Mount volumes — connects a folder on your Mac to a folder
+    # inside the container so data persists between restarts
+    volumes:
+      # Persist the SQLite database file
+      # Format: "HOST_PATH:CONTAINER_PATH"
+      - ./backend/database.db:/app/database.db
+
+    # Restart policy
+    # "unless-stopped" means restart automatically if it crashes
+    # but not if you manually stop it
+    restart: unless-stopped
+
+    # Health check — Docker periodically checks if the app is alive
+    # If it fails 3 times the container is marked unhealthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
