@@ -1,4 +1,5 @@
 # City Service Triage Agent
+![CI Pipeline](https://github.com/Kaidena95/city-service-triage-agent/actions/workflows/ci.yml/badge.svg)
 ### AI-Assisted Service Request Management System
 **City of Los Angeles — Department of General Services**
 **Agentic Software Engineering Internship Project**
