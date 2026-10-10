@@ -18,7 +18,7 @@ an AI-assisted triage workflow that:
 - **Generates** a recommended next action for every request
 - **Displays** all requests in a real-time filterable dashboard
 - **Exposes** all data and operations as MCP tools for AI agents
-- **Tests** all logic with 17+ pytest unit and integration tests
+- **Tests** all logic with 31 pytest tests (13 unit + 18 integration)
 
 ---
 
