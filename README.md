@@ -173,7 +173,7 @@ source venv/bin/activate
 pytest tests/ -v
 ```
 
-Expected: 17+ tests passed, 0 failed.
+Expected: 31 tests passed, 0 failed.
 
 ---
 
